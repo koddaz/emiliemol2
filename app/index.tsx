@@ -1,33 +1,41 @@
 import { supabase } from "@/db/supabase";
-import { AppState, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Session } from "@supabase/supabase-js";
+import React, { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button, PaperProvider, TextInput } from 'react-native-paper';
-import { useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import 'react-native-url-polyfill/auto';
+import Settings from "./settings";
 
 export default function Index() {
+
+  const [session, setSession] = useState<Session | null>(null)
+
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+
+  // If no session, show auth screen
   return (
     <PaperProvider>
-      <SafeAreaView
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-       <AuthScreen />
+      <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        {session && session.user ? <Settings key={session.user.id} session={session} /> : <AuthScreen />}
       </SafeAreaView>
     </PaperProvider>
   );
 }
 
 
-AppState.addEventListener('change', (state) => {
-  if (state === 'active') {
-    supabase.auth.startAutoRefresh()
-  } else {
-    supabase.auth.stopAutoRefresh()
-  }
-})
 
 interface AuthProps {
   user_name?: string;
@@ -41,34 +49,84 @@ export function AuthScreen(
 
   return (
     <View style={styles.background}>
-      <Auth {...props} />
-    </View>
-  )
-
-}
-
-export function Auth(
-  props: AuthProps
-) {
-
-  return (
-    <View style={styles.container}>
-      <Text>Auth Component</Text>
       <AuthInput {...props} />
-      <AuthButtons {...props} />
     </View>
   )
 
 }
+
+
 
 export function AuthInput(
   props: AuthProps
 ) {
-  const { user_email, user_name, user_password } = props;
-  var [email, setEmail] = useState(user_email || '');
-  var [username, setUsername] = useState(user_name || '');
-  var [password, setPassword] = useState(user_password || '');
 
+  var [email, setEmail] = useState(props.user_email || '');
+  // var [username, setUsername] = useState(props.user_name || '');
+  var [password, setPassword] = useState(props.user_password || '');
+  var [toggle, setToggle] = useState(false);
+
+  const [loading, setLoading] = useState(false)
+
+
+  async function signInWithEmail() {
+    console.log('Starting sign in...')
+    setLoading(true)
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      })
+
+      console.log('Sign in response:', { error })
+
+      if (error) {
+        console.error('Sign in error:', error)
+        Alert.alert(error.message)
+      }
+    } catch (err) {
+      console.error('Sign in exception:', err)
+    } finally {
+      console.log('Sign in complete')
+      setLoading(false)
+    }
+  }
+
+  async function signUpWithEmail() {
+    console.log('Starting sign up...')
+    setLoading(true)
+
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+      })
+
+      console.log('Sign up response:', { session, error })
+
+      if (error) {
+        console.error('Sign up error:', error)
+        Alert.alert(error.message)
+      }
+      if (!session) {
+        Alert.alert('Please check your inbox for email verification!')
+      }
+    } catch (err) {
+      console.error('Sign up exception:', err)
+    } finally {
+      console.log('Sign up complete')
+      setLoading(false)
+    }
+  }
+
+
+  // Lägg till funktioner för att hantera inloggning och registrering. 
+  // Logik om att texten måste innehålla saker och att lösenordet är rätt formaterat.
+  // Skapa felmeddelanden om inloggning eller registrering misslyckas.
   return (
     <View style={styles.container}>
       <Text style={{ marginBottom: 10 }}>
@@ -82,12 +140,12 @@ export function AuthInput(
         style={{ marginBottom: 10 }}
       />
 
-      <TextInput
+      {/* <TextInput
         label="username"
         value={username}
         onChangeText={(text) => { setUsername(text) }}
         style={{ marginBottom: 10 }}
-      />
+      /> */}
 
       <TextInput
         label="password"
@@ -96,99 +154,71 @@ export function AuthInput(
         secureTextEntry
         style={{ marginBottom: 10 }}
       />
+      <View style={styles.container}>
+        <Button
+          mode="contained"
+          onPress={() => {
+            console.log('Sign In Pressed');
 
+            if (!loading) {
+              if (toggle) {
+                signUpWithEmail();
+                console.log('Calling sign up');
+              } else {
+                signInWithEmail();
+                console.log('Calling sign in');
+              }
+            }
+          }}
+          style={{ marginBottom: 10 }}
+          loading={loading}
+        >
+          {toggle ? 'Sign Up' : 'Sign In'}
+
+        </Button>
+        <View style={styles.row}>
+          {toggle ? (
+            <Text>Already have an account? </Text>
+          ) : (
+            <Text>Don't have an account? </Text>
+          )}
+          <Text style={{ color: 'blue' }} onPress={() => {
+            console.log('Toggle pressed');
+            setToggle(!toggle)
+          }}>
+            {toggle ? 'Sign In' : 'Sign Up'}
+          </Text>
+        </View>
+      </View>
     </View>
   )
 }
 
-export function AuthButtons(
-  props: AuthProps
-) {
-
-  const [toggle, setToggle] = useState(false);
-
-  return (
-    <View style={styles.container}>
-      <Button
-        mode="contained"
-        onPress={() => {
-          console.log('Sign In Pressed');
-          // Call signIn function here
-        }}
-        style={{ marginBottom: 10 }}
-      >
-
-        {toggle ? 'Sign Up' : 'Sign In'}
-
-      </Button>
-      <View style={styles.row}>
-            {toggle ? (
-              <Text>Don't have an account? Create an account</Text>
-            ) : (
-              <Text>Already have an account? Sign in</Text>
-            )}
-            <Text style={{ color: 'blue' }} onPress={() => {
-              console.log('Sign Up Pressed');
-              setToggle(!toggle)
-            }}>
-              HERE
-            </Text>
-            
-          </View>
-        </View>
-      );
-}
 
 
 
-      export function AuthState() {
-  const [session, setSession] = useState(supabase.auth.getSession());
 
-  const signIn = async (email: string, password: string) => {
-    const {data, error} = await supabase.auth.signInWithPassword({
-        email,
-        password,
-    });
-      if (error) {
-        console.error('Sign in error:', error);
-    } else {
-        // setSession(data.session);
-      }
-  }
 
-  const signUp = async (email: string, password: string) => {
-    const {data, error} = await supabase.auth.signUp({
-        email,
-        password,
-    });
-      if (error) {
-        console.error('Sign up error:', error);
-    } else {
-        // setSession(data.session);
-      }
-  }
-}
+const styles = StyleSheet.create({
 
-      export const styles = StyleSheet.create({
-
-        background: {
-        width: '100%',
-      flex: 1,
+  background: {
+    width: '100%',
+    flex: 1,
   },
-      container: {
-        width: '100%',
-      borderWidth: 1,
-      padding: 10,
+  container: {
+    width: '100%',
+    borderWidth: 1,
+    padding: 10,
   },
-      row: {
-        flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-      column: {
-        flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+  column: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   }
 
 
