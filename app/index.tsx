@@ -6,6 +6,7 @@ import { Button, PaperProvider, TextInput } from 'react-native-paper';
 import { SafeAreaView } from "react-native-safe-area-context";
 import 'react-native-url-polyfill/auto';
 import Settings from "./settings";
+import DiaryScreen from "./diary";
 
 export default function Index() {
 
@@ -29,7 +30,8 @@ export default function Index() {
   return (
     <PaperProvider>
       <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        {session && session.user ? <Settings key={session.user.id} session={session} /> : <AuthScreen />}
+        {session && session.user ? 
+          <DiaryScreen key={session.user.id} session={session} /> : <AuthScreen />}
       </SafeAreaView>
     </PaperProvider>
   );
