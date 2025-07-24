@@ -1,25 +1,70 @@
 import { supabase } from "@/db/supabase";
+import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { Session } from "@supabase/supabase-js";
-import { useState } from "react";
-import { StyleSheet, View } from "react-native"
-import { Button, Text, TextInput } from "react-native-paper";
+import React, { useRef, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Button, SegmentedButtons, Text, TextInput } from "react-native-paper";
 
 export default function DiaryScreen({ session }: { session: Session }) {
 
     var userId = session?.user.id;
 
+    const bottomSheetRef = useRef<BottomSheet>(null);
+    const snapPoints = React.useMemo(() => ['25%', '50%', '90%'], []);
+
     return (
-        <View style={styles.background}>
-            <DiaryInput userId={userId} />
-        </View>
+        <GestureHandlerRootView style={styles.background}>
+
+            <Button
+                mode="contained"
+                onPress={() => bottomSheetRef.current?.expand()}
+                style={{ marginTop: 10 }}
+            >
+                <Text style={{ textAlign: 'center' }}>Open</Text>
+            </Button>
+
+
+            <BottomSheet
+                ref={bottomSheetRef}
+                index={-1}
+                snapPoints={snapPoints}
+                enablePanDownToClose={true}
+            >
+                <BottomSheetView style={styles.contentContainer}>
+                    <DiaryInput userId={userId} />
+                </BottomSheetView>
+            </BottomSheet>
+
+        </GestureHandlerRootView>
+
     )
 
 }
 
+export function DiaryEntries() {
+    // This component will fetch and display diary entries from the database   
+
+    return (
+        <View style={styles.background}>
+            <Text>Diary Entries will be displayed here</Text>
+            {/* Add your diary entries display logic here */}
+        </View>
+    );
+}
+
+
 export function DiaryInput(
     { userId }: { userId: string }
 ) {
+    // State variables for diary entries
     const [entry, setEntry] = useState('');
+    const [carbs, setCarbs] = useState('');
+    const [insulin, setInsulin] = useState('');
+
+    // State variable for the selected tab and bottom sheet
+    const [tab, setTab] = useState('diary');
+
 
     // Function to handle diary entry submission
     async function handleSubmit() {
@@ -46,7 +91,9 @@ export function DiaryInput(
                 .insert({
                     user_id: userId,
                     folder_id: folderData.id,
-                    content: entry
+                    content: entry,
+                    carbs: carbs,
+                    insulin: insulin,
                 });
 
             if (insertError) {
@@ -62,28 +109,125 @@ export function DiaryInput(
     }
 
 
+
     return (
-        <View style={styles.container}>
-            <TextInput
-                mode="outlined"
-                label="Diary Entry"
-                multiline={true}
-                value={entry}
-                onChangeText={(text) => setEntry(text)}
-                numberOfLines={4}
-                style={{ marginBottom: 10 }}
-            />
-            <Button
-                mode="contained"
-                onPress={handleSubmit}
-                style={{ marginTop: 10 }}
-            >
-                <Text style={{ textAlign: 'center' }}>Submit Entry</Text>
-            </Button>
+        <View style={styles.background}>
+            <View style={styles.background}>
+                <SegmentedButtons
+                    theme={{
+                        roundness: 0
+                    }}
+                    value={tab}
+                    onValueChange={setTab}
+                    style={{ marginBottom: 5 }}
+                    buttons={[
+
+                        {
+                            icon: 'food',
+                            value: 'carbs',
+                            label: 'Carbs',
+                        },
+                        {
+                            icon: 'camera',
+                            value: 'photo',
+                            label: 'Photo'
+                        },
+                        {
+                            icon: 'note',
+                            value: 'diary',
+                            label: 'Notes',
+                        },
+                    ]}
+                />
+
+
+                {tab === 'diary' && (
+                    <NoteInput
+                        entry={entry}
+                        setEntry={setEntry}
+                    />
+                )}
+
+                {tab === 'carbs' && (
+                    <CarbsInput
+                        carbs={carbs}
+                        setCarbs={setCarbs}
+                        insulin={insulin}
+                        setInsulin={setInsulin}
+                    />
+                )}
+
+                {tab === 'photo' && (
+                    <View style={{ marginBottom: 10 }}>
+                        <Text>Photo functionality coming soon...</Text>
+                        {/* Add your photo upload component here */}
+                    </View>
+                )}
+
+
+            </View>
+
+            <View style={{ marginTop: 10, }}>
+                <Button
+                    mode="contained"
+                    onPress={handleSubmit}
+                    style={{ marginTop: 10 }}
+                >
+                    <Text style={{ textAlign: 'center' }}>Submit Entry</Text>
+                </Button>
+            </View>
         </View>
     );
 }
 
+
+export function CarbsInput(
+    {
+        carbs, setCarbs,
+        insulin, setInsulin
+    }: {
+        carbs?: string, setCarbs: (carbs: string) => void,
+        insulin?: string, setInsulin: (insulin: string) => void
+    }
+) {
+    return (
+        <View style={{}}>
+            <TextInput
+                mode="outlined"
+                label="Carbs"
+                value={carbs}
+                onChangeText={(text) => setCarbs(text)}
+                keyboardType="numeric"
+                style={{ marginBottom: 5 }}
+            />
+            <TextInput
+                mode="outlined"
+                label="Insulin"
+                value={insulin}
+                onChangeText={(text) => setInsulin(text)}
+                keyboardType="numeric"
+                style={{ marginBottom: 5 }}
+            />
+        </View>
+    );
+
+}
+
+export function NoteInput(
+    { entry, setEntry }: { entry: string, setEntry: (note: string) => void }
+) {
+    return (
+        <TextInput
+            mode="outlined"
+            label="Diary Entry"
+            multiline={true}
+            value={entry}
+            onChangeText={(text) => setEntry(text)}
+            numberOfLines={4}
+            style={{ marginBottom: 10 }}
+        />
+    );
+}
 const styles = StyleSheet.create({
 
     background: {
@@ -95,6 +239,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         padding: 10,
     },
+
+    contentContainer: {
+        flex: 1,
+        padding: 16,
+    },
+
     row: {
         flexDirection: 'row',
         alignItems: 'center',
